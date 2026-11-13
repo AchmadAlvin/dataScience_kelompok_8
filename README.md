@@ -4,7 +4,7 @@
 
 | Komponen | Keterangan |
 | :--- | :--- |
-| **Judul Proyek** | Perbandingan Kinerja Linear Regression, XGBoost, dan Long Short-Term Memory (LSTM) dalam Prediksi Jumlah Kasus Demam Berdarah Dengue (DBD) Berdasarkan Faktor Meteorologi di Jakarta Pusat |
+| **Judul Proyek** | Perbandingan Kinerja Naive Baseline, XGBoost, dan Long Short-Term Memory (LSTM) dalam Prediksi Jumlah Kasus Demam Berdarah Dengue (DBD) Berdasarkan Faktor Meteorologi di Jakarta Pusat |
 | **Kelompok / Kelas** | Kelompok 8 / TRPL 5B |
 | **Nama Mahasiswa** | 1. Habib Hajid Taqiuddin (NIM: 244311043)<br>2. Achmad Alvin Al Falah (NIM: 244311031) |
 | **Program Studi** | Teknologi Rekayasa Perangkat Lunak (TRPL) |
@@ -27,21 +27,21 @@ Penelitian sebelumnya oleh Syahbani dan Sukendra (2020) mengenai peramalan kasus
 
 Kajian lain oleh Tarmana (2014) di DKI Jakarta menunjukkan bahwa kenaikan suhu dan perubahan pola hujan berpotensi meningkatkan risiko kejadian DBD. Selain itu, Ichwani dan Wibawa (2019) memodelkan angka kasus DBD di Kecamatan Tembalang menggunakan metode Extreme Learning Machine (ELM) dengan input suhu, kelembapan, dan curah hujan. Hasil kedua studi tersebut mengindikasikan bahwa penggunaan beberapa variabel cuaca sekaligus memberikan informasi prediktif yang lebih baik dibandingkan variabel tunggal.
 
-Meskipun demikian, terdapat beberapa hal yang perlu dikembangkan lebih lanjut. Pertama, sebagian besar studi terdahulu berfokus pada satu metode saja tanpa membandingkan beberapa model secara langsung pada data yang sama. Kedua, belum banyak kajian yang membandingkan performa model statistik dasar (Linear Regression), algoritma ensemble pohon (XGBoost), dan jaringan saraf tiruan untuk deret waktu (LSTM) pada wilayah perkotaan padat seperti Jakarta Pusat. Ketiga, pengaruh cuaca terhadap jumlah kasus DBD memiliki jeda waktu (time lag) antara 1 hingga 4 minggu akibat siklus metamorfosis nyamuk dan masa inkubasi virus. Oleh karena itu, rekayasa fitur jeda waktu perlu diterapkan untuk menguji pengaruhnya terhadap akurasi model.
+Meskipun demikian, terdapat beberapa hal yang perlu dikembangkan lebih lanjut. Pertama, sebagian besar studi terdahulu berfokus pada satu metode saja tanpa membandingkan beberapa model secara langsung pada data yang sama. Kedua, belum banyak kajian yang membandingkan performa model acuan dasar peramalan waktu (Naive Baseline), algoritma ensemble pohon (XGBoost), dan jaringan saraf tiruan untuk deret waktu (LSTM) pada wilayah perkotaan padat seperti Jakarta Pusat. Ketiga, pengaruh cuaca terhadap jumlah kasus DBD memiliki jeda waktu (time lag) antara 1 hingga 4 minggu akibat siklus metamorfosis nyamuk dan masa inkubasi virus. Oleh karena itu, rekayasa fitur jeda waktu perlu diterapkan untuk menguji pengaruhnya terhadap akurasi model.
 
-Berdasarkan permasalahan tersebut, penelitian ini bertujuan untuk membandingkan kinerja tiga model, yaitu Linear Regression, XGBoost, dan Long Short-Term Memory (LSTM), dalam memprediksi jumlah kasus DBD harian di Jakarta Pusat menggunakan data BMKG periode 2021 sampai 2024. Linear Regression digunakan sebagai model dasar (baseline), XGBoost diterapkan untuk menangkap interaksi non-linear antarfaktor cuaca, dan LSTM digunakan untuk memodelkan pola ketergantungan waktu jangka panjang.
+Berdasarkan permasalahan tersebut, penelitian ini bertujuan untuk membandingkan kinerja tiga model, yaitu Naive Baseline (Persistence Model), XGBoost, dan Long Short-Term Memory (LSTM), dalam memprediksi jumlah kasus DBD harian di Jakarta Pusat menggunakan data BMKG periode 2021 sampai 2024. Model Naive digunakan sebagai model dasar (baseline) tolok ukur peramalan deret waktu murni, XGBoost diterapkan untuk menangkap interaksi non-linear antarfaktor cuaca, dan LSTM digunakan untuk memodelkan pola ketergantungan waktu jangka panjang.
 
 Evaluasi performa dilakukan menggunakan metrik Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), dan koefisien determinasi (R²). Pembagian data latih dan data uji dilakukan secara kronologis untuk mencegah kebocoran data (data leakage). Hasil prediksi ini diharapkan dapat menjadi rujukan sistem kewaspadaan dini bagi dinas kesehatan, serta mendukung pencapaian SDG 3 Target 3.3 dalam menanggulangi penyakit menular.
 
 ### 1.2 Rumusan Masalah
 
-1. Bagaimana merancang, melatih, dan mengevaluasi tiga model prediksi (Linear Regression, XGBoost, dan LSTM) pada data deret waktu kasus DBD?
-2. Model manakah di antara Linear Regression, XGBoost, dan LSTM yang memberikan performa terbaik berdasarkan metrik MAE, RMSE, dan R² pada data uji kronologis?
+1. Bagaimana merancang, melatih, dan mengevaluasi tiga model prediksi (Naive Baseline, XGBoost, dan LSTM) pada data deret waktu kasus DBD?
+2. Model manakah di antara Naive Baseline, XGBoost, dan LSTM yang memberikan performa terbaik berdasarkan metrik MAE, RMSE, dan R² pada data uji kronologis?
 
 ### 1.3 Tujuan Penelitian
 
 1. Mengolah dan menyelaraskan dataset harian kasus DBD dengan parameter cuaca BMKG di Jakarta Pusat periode 2021 sampai 2024 serta membentuk fitur jeda waktu (time lag).
-2. Membangun dan melatih model Linear Regression, XGBoost, dan LSTM dengan skema pembagian data secara kronologis.
+2. Membangun dan menguji model Naive Baseline, XGBoost, dan LSTM dengan skema pembagian data secara kronologis.
 3. Menganalisis pengaruh fitur jeda waktu terhadap peningkatan akurasi estimasi pada ketiga model yang diuji.
 4. Membandingkan performa ketiga model menggunakan metrik MAE, RMSE, dan R² untuk menentukan model dengan kesalahan prediksi terendah.
 5. Menyusun simpulan hasil pemodelan sebagai bahan pendukung kewaspadaan dini penyebaran DBD yang selaras dengan SDG 3 Target 3.3.
@@ -68,7 +68,7 @@ Rincian keterkaitan penelitian ini dengan Sustainable Development Goals (SDG 3 T
 
 ### 2.1 Alur Kerangka Kerja ML Lifecycle (L-M-O-P)
 
-Pelaksanaan proyek ini mengikuti empat tahap Machine Learning Lifecycle: tahap Learning Problem (L) berfokus pada perumusan tugas regresi deret waktu multivariat dan pemeriksaan dataset; tahap Model Design (M) menentukan arsitektur tiga model (Linear Regression, XGBoost, dan LSTM); tahap Optimization (O) mencakup pembersihan data hilang, rekayasa fitur jeda waktu (time lag), penyetelan hyperparameter, dan fungsi loss MSE; serta tahap Predict and Evaluate (P) menguji prediksi pada data uji kronologis berbasis MAE, RMSE, dan R².
+Pelaksanaan proyek ini mengikuti empat tahap Machine Learning Lifecycle: tahap Learning Problem (L) berfokus pada perumusan tugas regresi deret waktu multivariat dan pemeriksaan dataset; tahap Model Design (M) menentukan formulasi tiga model (Naive Baseline, XGBoost, dan LSTM); tahap Optimization (O) mencakup pembersihan data hilang, rekayasa fitur jeda waktu (time lag), penyetelan hyperparameter, dan fungsi loss MSE; serta tahap Predict and Evaluate (P) menguji prediksi pada data uji kronologis berbasis MAE, RMSE, dan R².
 
 ### 2.2 Formulasi Learning Problem dan Spesifikasi Dataset
 
@@ -87,11 +87,13 @@ Rumusan teknis masalah pembelajaran mesin dan spesifikasi dataset dirangkum pada
 
 ## BAB III. RENCANA PENDEKATAN PEMODELAN DAN EVALUASI
 
-### 3.1 Model Baseline: Linear Regression
+### 3.1 Model Baseline: Naive Forecaster (Persistence Model)
 
-Model acuan dasar (baseline) yang digunakan adalah Ordinary Least Squares (OLS) Linear Regression. Model ini dipilih karena bersifat parametrik, sederhana, cepat dilatih, dan koefisien bobotnya mudah diinterpretasikan. Linear Regression berfungsi sebagai tolok ukur awal untuk mengetahui sejauh mana korelasi linear langsung antara parameter cuaca dan angka kasus DBD dapat menjelaskan variansi data target.
+Model acuan dasar (baseline) yang digunakan adalah Naive Forecaster (dikenal juga sebagai Persistence Model atau Random Walk Forecast). Dalam metodologi peramalan deret waktu (time series forecasting), model Naive merupakan tolok ukur batas bawah ilmiah standar yang paling fundamental. Model ini tidak memerlukan proses estimasi parameter bobot, melainkan menetapkan aturan deterministik bahwa estimasi jumlah kasus pada hari esok diasumsikan sama dengan jumlah kasus yang teramati pada hari ini.
 
-Secara matematis, prediksi dihitung melalui kombinasi linear dari variabel input dengan meminimalkan jumlah kuadrat galat (sum of squared residuals). Hasil pengujian model dasar ini akan menjadi pembanding untuk menilai apakah model non-linear dan model sekuensial yang lebih kompleks memberikan peningkatan performa yang berarti.
+Secara matematis, estimasi kasus dihitung melalui formulasi pergeseran waktu:
+$$\hat{y}_t = y_{t-1}$$
+di mana $\hat{y}_t$ adalah estimasi kasus DBD pada hari ke-t dan $y_{t-1}$ adalah nilai aktual kasus DBD pada hari sebelumnya. Hasil pengujian model dasar Naive ini menjadi tolok ukur mutlak: model machine learning dan deep learning yang lebih kompleks (XGBoost dan LSTM) baru dapat dinyatakan layak dan bernilai guna apabila mampu menghasilkan kesalahan prediksi yang secara signifikan lebih rendah dibandingkan tebakan dasar Naive ini.
 
 ### 3.2 Model Advanced Machine Learning: XGBoost Regressor
 
