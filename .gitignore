@@ -1,7 +1,22 @@
+# Data files (tidak di-upload ke GitHub sesuai pedoman Bab 10.1)
+data/
+
+# Python environments & caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Jupyter & IDE artifacts
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS metadata
 desktop.ini
 dekstop.ini
-.ipynb_checkpoints/
-__pycache__/
-*.pyc
 .DS_Store
 Thumbs.db

@@ -113,6 +113,165 @@ Semua model diuji menggunakan protokol eksperimen yang seragam pada partisi data
 
 ---
 
+## BAB IV. DATA UNDERSTANDING
+
+### 4.1 Informasi Dataset
+
+**Sumber Dataset:**
+1. **Indonesia Climate Daily (BMKG 2010-2020):** [kaggle.com/datasets/greegtitan/indonesia-climate](https://www.kaggle.com/datasets/greegtitan/indonesia-climate) (`589.265` baris x `12` kolom, `34,184 MB`, CSV)
+2. **Jakarta Dengue & Weather (BMKG 2021-2024):** [kaggle.com/datasets/yutakatarokusumah/jakarta-dengue-weather-2021-2024](https://www.kaggle.com/datasets/yutakatarokusumah/jakarta-dengue-weather-2021-2024) (`2.922` baris x `14` kolom, `0,196 MB`, CSV)
+3. **OpenDengue DKI Jakarta (2004-2024):** [opendengue.org/data.html](https://opendengue.org/data.html) V1.3.1 (`232` baris x `9` kolom setelah filter wilayah DKI Jakarta bulanan, `0,017 MB`, CSV)
+
+**Deskripsi Dataset Terintegrasi Final (`data/merged/dki_jakarta_dengue_weather_2010_2024_monthly.csv`):**
+- **Metode Integrasi:** Catatan meteorologi harian BMKG dari dua stasiun referensi DKI Jakarta (**Stasiun Kemayoran `96745`** dan **Stasiun Tanjung Priok `96741`**) pada periode **Januari 2010 s.d. Juli 2024** dibersihkan dari kode sentinel (`>= 8888` dan nilai negatif), diagregasi ke tingkat bulanan, lalu digabungkan dengan surveilans kasus DBD bulanan Provinsi DKI Jakarta (OpenDengue) melalui skrip [`src/build_dataset.py`](src/build_dataset.py).
+- **Jumlah baris (rows):** `175` (periode bulanan berurutan dari `2010-01` s.d. `2024-07`)
+- **Jumlah kolom (columns/features):** `15`
+- **Tipe data:** Multivariate Time Series Bulanan (Tabular)
+- **Ukuran dataset:** `0,0189 MB` (`~19,8 KB`)
+- **Format file:** `CSV`
+
+### 4.2 Deskripsi Fitur
+
+| Nama Fitur | Tipe Data | Deskripsi | Contoh Nilai |
+| :--- | :--- | :--- | :--- |
+| `ym` | String (`str`) | Identitas periode tahun-bulan (`YYYY-MM`) | `2010-01`, `2010-02`, `2010-03` |
+| `date` | String (`str`) | Tanggal awal bulan (`YYYY-MM-01`) untuk pengindeksan deret waktu | `2010-01-01`, `2010-02-01` |
+| `year` | Integer (`int64`) | Tahun observasi (`2010` s.d. `2024`) | `2010`, `2011`, `2012` |
+| `month` | Integer (`int64`) | Bulan kalender (`1` s.d. `12`) | `1`, `2`, `3` |
+| `Tn` | Float (`float64`) | Rata-rata suhu udara minimum harian pada bulan tersebut (°C) | `24.85`, `25.30`, `25.92` |
+| `Tx` | Float (`float64`) | Rata-rata suhu udara maksimum harian pada bulan tersebut (°C) | `31.06`, `31.76`, `32.42` |
+| `Tavg` | Float (`float64`) | Rata-rata suhu udara harian pada bulan tersebut (°C) | `27.53`, `28.09`, `28.65` |
+| `RH_avg` | Float (`float64`) | Rata-rata kelembapan udara relatif pada bulan tersebut (%) | `80.79`, `80.64`, `78.03` |
+| `RR_total` | Float (`float64`) | Estimasi total akumulasi curah hujan bulanan (`RR_mean x hari bulan`, mm) | `490.26`, `288.10`, `228.31` |
+| `RR_mean` | Float (`float64`) | Rata-rata intensitas curah hujan harian pada bulan tersebut (mm/hari) | `15.82`, `10.29`, `7.36` |
+| `rain_days` | Float (`float64`) | Rata-rata jumlah hari hujan (`RR > 0`) per stasiun dalam sebulan (hari) | `22.0`, `18.0`, `12.0` |
+| `ss` | Float (`float64`) | Rata-rata durasi penyinaran matahari harian (jam/hari) | `2.72`, `4.21`, `5.12` |
+| `ff_x` | Float (`float64`) | Rata-rata kecepatan angin maksimum bulanan antar stasiun (m/s) | `7.5`, `11.5`, `7.0` |
+| `ff_avg` | Float (`float64`) | Rata-rata kecepatan angin harian pada bulan tersebut (m/s) | `2.92`, `2.39`, `2.42` |
+| `dengue_total` | Float (`float64`) | **Target:** Jumlah total kasus DBD bulanan di Provinsi DKI Jakarta | `1486.0`, `1815.0`, `2570.0` |
+
+### 4.3 Kondisi Data
+
+- **Missing Values:** Seluruh 10 fitur cuaca memiliki **0% missing value** setelah agregasi dari dua stasiun referensi BMKG. Pada variabel target `dengue_total`, ditemukan **3 bulan kosong (1,71%)** yang terisolasi masing-masing satu bulan: `2011-04`, `2016-02`, dan `2020-09`.
+- **Duplicate Data:** **0 baris duplikat** dan **0 duplikat periode `ym`**; seluruh `175` bulan kalender dari `2010-01` s.d. `2024-07` hadir berurutan tanpa ada bulan yang terlewat.
+- **Outliers:** Pemeriksaan metode IQR mendeteksi nilai ekstrem atas pada `dengue_total` (`8` bulan / `4,57%` di atas batas IQR `2.133,88`, dengan puncak `3.781` kasus pada `2016-04` dan `3.164` kasus pada `2024-04`), `RR_total` (`10` bulan / `5,71%`), `RR_mean` (`12` bulan / `6,86%`), `ff_x` (`12` bulan / `6,86%`), `Tx` (`8` bulan), `Tavg` (`6` bulan), `Tn` (`5` bulan), dan `ff_avg` (`1` bulan). Seluruh outlier ini merupakan kejadian KLB dan dinamika cuaca ekstrem yang valid sehingga **tidak dihapus**.
+- **Imbalanced Data:** Tugas penelitian berupa **regresi deret waktu kontinu** (bukan klasifikasi biner/multikelas), sehingga ketidakseimbangan kelas tidak berlaku. Distribusi target `dengue_total` miring ke kanan (*right-skewed*, skewness = `1,964`, median = `489,0`, mean = `697,89`).
+- **Noise & Data Quality Issues:** Pada data mentah harian BMKG, kode sensor/pengukuran error `8888`/`9999` serta nilai negatif telah dikonversi menjadi `NaN` sebelum dirata-ratakan ke bulanan (tersisa `0` nilai `>= 8888` maupun negatif pada tabel final). Periode 2020-2021 juga mencerminkan penurunan pelaporan/mobilitas selama pandemi COVID-19.
+- **Asumsi Data:** Data bersifat deret waktu (*non-i.i.d.*) dengan autokorelasi kuat antarbulan (`r = 0,854` pada lag 1). Untuk mencegah *data leakage*, pembagian dataset wajib mempertahankan urutan kronologis (tanpa *shuffle*), *scaler* hanya di-*fit* pada data latih, dan fitur cuaca bulan berjalan (`lag 0`) tidak boleh dipakai saat memprediksi kasus bulan ke-$t$.
+
+### 4.4 Exploratory Data Analysis (EDA)
+
+Detail kode dan output eksplorasi tersedia pada [`notebooks/01_learning_problem_eda.ipynb`](notebooks/01_learning_problem_eda.ipynb).
+
+#### Visualisasi 1: Tren Bulanan Kasus DBD DKI Jakarta (2010-2024)
+
+![Tren Bulanan Kasus DBD](reports/figures/fig_01_dengue_timeseries.png)
+
+**Insight:** Deret waktu kasus DBD DKI Jakarta memperlihatkan pola musiman berulang setiap tahun disertai lonjakan epidemi besar pada **April 2016 (`3.781` kasus)** dan **April 2024 (`3.164` kasus)**. Tiga titik data kosong (`2011-04`, `2016-02`, `2020-09`) tampak sebagai celah tunggal 1 bulan di antara nilai bulan sebelum dan sesudahnya yang masih utuh.
+
+#### Visualisasi 2: Profil Musiman Curah Hujan dan Kelembapan terhadap Kasus DBD
+
+![Profil Musiman Bulanan](reports/figures/fig_02_seasonality_profile.png)
+
+**Insight:** Secara rata-rata historis 2010-2024, puncak curah hujan (`522,10 mm`) dan kelembapan (`81,73%`) terjadi pada **Februari** (bulan ke-2), sedangkan puncak rata-rata kasus DBD muncul **2 bulan kemudian**, yaitu pada **Maret (`1.218,67` kasus)** dan **April (`1.330,43` kasus)**. Pergeseran fase musiman ini memvalidasi hipotesis jeda waktu biologis **1 hingga 2 bulan**.
+
+#### Visualisasi 3: Distribusi Nilai Variabel Meteorologi dan Target
+
+![Distribusi Fitur Utama](reports/figures/fig_03_distributions.png)
+
+**Insight:** `dengue_total` dan `RR_total` berdistribusi *positively skewed*, sedangkan suhu (`Tavg`, median `28,7 °C`) dan kelembapan (`RH_avg`, median `76,7%`) berdistribusi lebih simetris dengan rentang sempit. Perbedaan satuan dan rentang antarfitur menegaskan perlunya standardisasi sebelum pelatihan model (khususnya LSTM).
+
+#### Visualisasi 4: Heatmap Korelasi Time Lag (Lag 0 s.d. Lag 3 Bulan)
+
+![Heatmap Korelasi Lag](reports/figures/fig_04_lag_correlation_heatmap.png)
+
+**Insight:** Korelasi variabel cuaca pada bulan yang sama (**Lag 0**) sangat lemah (`RR_total = 0,096`, `Tavg = 0,072`). Hubungan meningkat tajam dan mencapai puncaknya pada **Lag 2 bulan**: `rain_days` (`0,534`), `RH_avg` (`0,525`), `RR_total` (`0,434`), `RR_mean` (`0,427`), `ss` (`-0,416`), dan `Tx` (`-0,308`), sebelum kembali melemah di Lag 3 bulan. Sementara itu, `dengue_total` pada **Lag 1 bulan** berkorelasi `0,854` terhadap bulan berikutnya, mendukung pemilihan **Naive Baseline** ($\hat{y}_t = y_{t-1}$) sebagai tolok ukur ilmiah.
+
+---
+
+## BAB V. DATA PREPARATION
+
+Detail kode preprocessing dan verifikasi anti-leakage tersedia pada [`notebooks/02_data_preparation.ipynb`](notebooks/02_data_preparation.ipynb).
+
+### 5.1 Data Cleaning
+
+- **Missing Values Target (`dengue_total`):** Terdapat 3 bulan kosong terisolasi (`1,71%`): `2011-04` dan `2016-02` berada di rentang Training, `2020-09` di rentang Validation, sedangkan Test memiliki `0` missing value. Ketiganya ditangani menggunakan **interpolasi linear deret waktu yang dilakukan terisolasi per partisi** (`2011-04 = 651,0`, `2016-02 = 2.034,5`, `2020-09 = 55,5`). Strategi ini menjaga kontinuitas kalender bulanan untuk fitur lag dan *sliding window* LSTM dengan **0% kebocoran antar partisi**.
+- **Duplikat & Sentinel BMKG:** Ditemukan `0` duplikat periode `ym`. Nilai sentinel BMKG `>= 8888` dan `< 0` sudah dibersihkan pada level harian sebelum agregasi bulanan.
+- **Outliers:** Dipertahankan seluruhnya karena puncak kasus DBD (`3.781` kasus pada `2016-04` dan `3.164` kasus pada `2024-04`) merupakan kejadian KLB nyata yang wajib dipelajari oleh model.
+
+![Verifikasi Interpolasi Cleaning](reports/figures/fig_05_cleaning_interpolation.png)
+
+### 5.2 Feature Engineering
+
+Seluruh **29 fitur prediktor** dibentuk murni dari informasi masa lalu (`t-1` dan `t-2`) serta kalender deterministik, **tanpa menyertakan fitur cuaca bulan berjalan (`lag 0`)** untuk mencegah *intra-month leakage*:
+1. **Lag Kasus DBD (`2` fitur):** `dengue_lag1`, `dengue_lag2`.
+2. **Lag Meteorologi (`20` fitur):** `*_lag1` dan `*_lag2` untuk seluruh 10 parameter cuaca (`Tn`, `Tx`, `Tavg`, `RH_avg`, `RR_total`, `RR_mean`, `rain_days`, `ss`, `ff_x`, `ff_avg`).
+3. **Rolling Mean 2 Bulan (`5` fitur):** `dengue_roll2_mean`, `RH_avg_roll2_mean`, `RR_total_roll2_mean`, `rain_days_roll2_mean`, `Tavg_roll2_mean` dihitung dengan `.shift(1).rolling(2).mean()` (hanya memakai periode $t-1$ dan $t-2$).
+4. **Siklikal Bulan (`2` fitur):** `month_sin` dan `month_cos` untuk merepresentasikan periode tahunan.
+
+Dua baris pertama (`2010-01` dan `2010-02`) yang belum memiliki histori 2 bulan penuh dihapus sehingga menyisakan **173 sampel efektif** (`2010-03` s.d. `2024-07`) dengan `0` missing value.
+
+### 5.3 Data Transformation
+
+- **Cyclical Encoding (`month_sin`, `month_cos`):** Mengubah nilai diskrit bulan `1..12` menjadi koordinat lingkaran berperiodisitas 12 bulan sehingga jarak antara bulan Desember (`12`) dan Januari (`1`) tetap kontinu ($2\pi / 12$ radian) tanpa menambah 12 kolom dummy (*One-Hot Encoding*).
+- **Standardization (`StandardScaler`):** Disiapkan untuk menyetarakan skala antarfitur yang berbeda lebar (`dengue_lag1` `36-3.781`, `RR_total_lag2` `0-1.060 mm`, vs `ff_avg_lag1` `1,10-3,97 m/s` dan `month_sin` `[-1, 1]`). Proses `.fit()` **dilakukan secara eksklusif setelah tahap splitting (Bab 5.4) hanya pada `X_train`**.
+
+### 5.4 Data Splitting
+
+**Strategi pembagian data (Chronological Split 70:15:15, tanpa *shuffle*, `RANDOM_STATE=42` untuk reprodusibilitas):**
+
+| Partisi | Proporsi | Jumlah Sampel | Rentang Bulan | Mean Target | Max Target |
+| :--- | :---: | :---: | :--- | :---: | :---: |
+| **Training Set** | 69,9% (~70%) | **121** | `2010-03` s.d. `2020-03` | `747,30` | `3.781,0` |
+| **Validation Set** | 15,0% | **26** | `2020-04` s.d. `2022-05` | `370,48` | `1.055,0` |
+| **Test Set (Locked)** | 15,0% | **26** | `2022-06` s.d. `2024-07` | `746,96` | `3.164,0` |
+
+![Pembagian Dataset Kronologis](reports/figures/fig_06_chronological_split.png)
+
+- **Alasan Pemilihan Strategi:** Pembagian kronologis menjaga kausalitas temporal agar model tidak menggunakan informasi masa depan untuk memprediksi masa lalu (*data leakage*). Baik Validation maupun Test masing-masing mencakup **26 bulan (>2 tahun siklus musiman penuh)**, dengan fase KLB 2024 (`3.164` kasus) berada pada Test set untuk menguji generalisasi akhir.
+- **Verifikasi Anti-Leakage:** `StandardScaler` di-*fit* hanya pada `X_train` (menghasilkan `mean ≈ 0,000000`, `std = 1,0000`), sedangkan `X_val_scaled` (`mean rata-rata = 0,092`) dan `X_test_scaled` (`mean rata-rata = 0,144`) hanya mengalami `.transform()`. **Test set dikunci dan tidak disentuh hingga evaluasi akhir (Tahap `[P]`).**
+
+---
+
+## REPRODUCIBILITY & STRUKTUR REPOSITORI
+
+### Struktur Folder Proyek
+
+```text
+project/
+├── data/                      # Dataset lokal (di-ignore Git sesuai pedoman Bab 10.1)
+│   ├── raw/                   # Sumber mentah (BMKG 2010-2020, 2021-2024, OpenDengue)
+│   ├── merged/                # Hasil integrasi bulanan (175 x 15)
+│   └── processed/             # Output Bab 5.4: train/val/test CSV, scaler, metadata
+├── notebooks/
+│   ├── 01_learning_problem_eda.ipynb   # [L] Data Understanding & EDA (Bab 4.1-4.4)
+│   └── 02_data_preparation.ipynb       # [L] Data Preparation (Bab 5.1-5.4)
+├── src/
+│   └── build_dataset.py       # Skrip integrasi & unduh fallback dataset
+├── models/                    # Placeholder model terlatih (Minggu 3+)
+├── reports/
+│   └── figures/               # Grafik PNG hasil eksekusi notebook
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
+### Cara Menjalankan Ulang (Reproducibility)
+
+1. Instal dependensi Python:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Bangun dataset integrasi bulanan (otomatis membaca `data/raw/` atau mengunduh dari Kaggle/OpenDengue jika kosong):
+   ```bash
+   python src/build_dataset.py
+   ```
+3. Jalankan notebook secara berurutan:
+   - `notebooks/01_learning_problem_eda.ipynb`
+   - `notebooks/02_data_preparation.ipynb`
+
+---
+
 ## DAFTAR PUSTAKA
 
 Ichwani, A. S., & Wibawa, H. A. (2019). Prediksi angka kejadian Demam Berdarah Dengue (DBD) berdasarkan faktor cuaca menggunakan metode Extreme Learning Machine (Studi kasus Kecamatan Tembalang). *Jurnal IPTEK*, 23(1), 31-34. https://doi.org/10.31284/j.iptek.2019.v23i1.471
