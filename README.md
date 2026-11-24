@@ -233,6 +233,52 @@ Dua baris pertama (`2010-01` dan `2010-02`) yang belum memiliki histori 2 bulan 
 
 ---
 
+## BAB VI. MODELING
+
+Detail perancangan dan evaluasi model Machine Learning pada data validasi.
+
+### 6.1 Model 1 — Baseline Model
+
+Detail kode eksekusi dan analisis residual tersedia pada [`notebooks/03_model_design_baseline_ml.ipynb`](notebooks/03_model_design_baseline_ml.ipynb).
+
+#### 6.1.1 Deskripsi Model
+- **Nama Model:** Naive Persistence Forecaster (Random Walk / Lag-1 Baseline)
+- **Teori Singkat:** Beroperasi secara deterministik murni tanpa optimasi parameter bobot gradien dengan aturan pergeseran waktu $\hat{y}_t = y_{t-1}$ (mengasumsikan jumlah kasus DBD pada bulan berjalan $t$ sama persis dengan realisasi kasus pada satu bulan sebelumnya $t-1$).
+- **Alasan Pemilihan:** Tolok ukur batas bawah (*lower-bound benchmark*) standar peramalan deret waktu; model Machine Learning yang lebih kompleks (XGBoost dan LSTM) baru dinilai layak dan bermanfaat apabila mampu mengungguli kesalahan prediksi Naive ini. Karakteristik autokorelasi serial kasus DBD DKI Jakarta sangat dominan ($r = 0,854$ pada lag 1).
+
+#### 6.1.2 Hypothesis Space & Inductive Bias
+- **Model Family / Arsitektur:** *Non-parametric persistence heuristic* (model deterministik tanpa parameter bobot bebas).
+- **Hypothesis Space ($\mathcal{H}$):** $\mathcal{H} = \{ f(x_t) = x_{t, \text{dengue\_lag1}} \}$ (*singleton*, dimensi VC = 0). Model sepenuhnya mengabaikan 27 fitur prediktor lainnya (faktor cuaca dan kalender).
+- **Inductive Bias / Asumsi:** Mengasumsikan autokorelasi serial sempurna ($\rho_1 \approx 1$) dan ketiadaan perubahan tren/musim ekstrem dalam horizon 1 bulan.
+- **Implikasi terhadap Data:** Sangat cocok pada kondisi endemis landai, namun dipastikan mengalami **keterlambatan fase 1 bulan (*phase lag*)** saat titik balik wabah tiba. Keterlambatan inheren ini menjadi justifikasi ilmiah mutlak perlunya model *advanced* XGBoost multivariat.
+
+#### 6.1.3 Implementasi Ringkas
+Model dibungkus dalam *class* standar scikit-learn `NaivePersistenceRegressor` dengan *method* `.fit(X_train, y_train)` dan `.predict(X_val)` yang memetakan fitur `dengue_lag1` secara efisien dan rapi.
+
+#### 6.1.4 Optimization: Objective, Hyperparameter & Regularisasi
+- **Objective:** Evaluasi akurasi peramalan diukur menggunakan metrik kuadratik dan absolut standar: MAE, RMSE, R², dan MAPE.
+- **Hyperparameter:** `0` / *None* (aturan deterministik tetap tanpa penyetelan).
+- **Regularisasi:** Tidak diperlukan ($d_{VC} = 0$, risiko *overfitting* nol).
+
+#### 6.1.5 Hasil Awal Validasi Model Baseline
+Evaluasi dilakukan secara ketat pada **Validation Set (26 sampel, periode April 2020 s.d. Mei 2022)**; data uji (*Test Set*) tetap dikunci rapat:
+
+| Metrik Evaluasi | Skor Validasi | Definisi & Interpretasi |
+| :--- | :---: | :--- |
+| **MAE (Mean Absolute Error)** | **130,19 kasus** | Rata-rata kesalahan absolut antara kasus aktual dan estimasi lag-1 |
+| **RMSE (Root Mean Squared Error)** | **172,51 kasus** | Akar rata-rata kuadrat galat (memberikan penalti lebih pada deviasi besar) |
+| **R² (Koefisien Determinasi)** | **0,6966** | 69,66% variansi target validasi dapat dijelaskan oleh nilai lag-1 |
+| **MAPE (Mean Absolute Percentage Error)** | **41,84%** | Rata-rata persentase kesalahan relatif terhadap kasus aktual |
+
+![Evaluasi Baseline dan Analisis Residual](reports/figures/fig_07_baseline_val_prediction_residual.png)
+
+**Temuan Kunci:**
+1. R² sebesar `0,6966` membuktikan bahwa inersia kasus bulan lalu membawa bobot informasi yang sangat kuat pada dinamika DBD DKI Jakarta.
+2. Analisis residual memperlihatkan keterlambatan fase yang nyata: *overestimation* (residual negatif hingga `-367` kasus) saat kasus anjlok pada pertengahan 2020 akibat PSBB COVID-19, serta *underestimation* (residual positif hingga `+366` kasus) saat kasus melonjak tajam pada awal 2022.
+3. Keterlambatan fase ini membuktikan bahwa model Naive tidak dapat mengantisipasi titik balik wabah, memberikan justifikasi mutlak bahwa **Model 2 (XGBoost Regressor)** yang membaca variabel meteorologi BMKG sangat dibutuhkan.
+
+---
+
 ## REPRODUCIBILITY & STRUKTUR REPOSITORI
 
 ### Struktur Folder Proyek
@@ -245,12 +291,15 @@ project/
 │   └── processed/             # Output Bab 5.4: train/val/test CSV, scaler, metadata
 ├── notebooks/
 │   ├── 01_learning_problem_eda.ipynb   # [L] Data Understanding & EDA (Bab 4.1-4.4)
-│   └── 02_data_preparation.ipynb       # [L] Data Preparation (Bab 5.1-5.4)
+│   ├── 02_data_preparation.ipynb       # [L] Data Preparation (Bab 5.1-5.4)
+│   └── 03_model_design_baseline_ml.ipynb # [M] Model 1 - Baseline (Bab 6.1)
 ├── src/
 │   └── build_dataset.py       # Skrip integrasi & unduh fallback dataset
-├── models/                    # Placeholder model terlatih (Minggu 3+)
+├── models/
+│   ├── .gitkeep
+│   └── baseline_model.pkl              # Artefak model baseline terlatih (Bab 6.1)
 ├── reports/
-│   └── figures/               # Grafik PNG hasil eksekusi notebook
+│   └── figures/               # Grafik PNG hasil eksekusi notebook (fig_01 - fig_07)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -269,6 +318,7 @@ project/
 3. Jalankan notebook secara berurutan:
    - `notebooks/01_learning_problem_eda.ipynb`
    - `notebooks/02_data_preparation.ipynb`
+   - `notebooks/03_model_design_baseline_ml.ipynb`
 
 ---
 
