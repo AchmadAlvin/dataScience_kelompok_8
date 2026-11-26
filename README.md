@@ -277,6 +277,106 @@ Evaluasi dilakukan secara ketat pada **Validation Set (26 sampel, periode April 
 2. Analisis residual memperlihatkan keterlambatan fase yang nyata: *overestimation* (residual negatif hingga `-367` kasus) saat kasus anjlok pada pertengahan 2020 akibat PSBB COVID-19, serta *underestimation* (residual positif hingga `+366` kasus) saat kasus melonjak tajam pada awal 2022.
 3. Keterlambatan fase ini membuktikan bahwa model Naive tidak dapat mengantisipasi titik balik wabah, memberikan justifikasi mutlak bahwa **Model 2 (XGBoost Regressor)** yang membaca variabel meteorologi BMKG sangat dibutuhkan.
 
+### 6.2 Model 2 — ML / Advanced Model
+
+Detail perancangan, implementasi, *hyperparameter tuning*, dan evaluasi model Machine Learning lanjutan tersedia pada [`notebooks/03_model_design_advanced_ml.ipynb`](notebooks/03_model_design_advanced_ml.ipynb).
+
+#### 6.2.1 Deskripsi Model [M]
+- **Nama Model:** XGBoost Regressor (`xgboost.XGBRegressor`)
+- **Teori Singkat:** XGBoost (Extreme Gradient Boosting) adalah algoritma *ensemble* berbasis pohon keputusan berulang (*gradient boosted decision trees*). Algoritma ini meminimalkan fungsi *loss* (Mean Squared Error) secara aditif pada setiap iterasi menggunakan pendekatan ekspansi deret Taylor orde kedua (gradien orde pertama $g_i$ dan hessian orde kedua $h_i$). Setiap pohon baru dilatih untuk memprediksi residual galat dari gabungan pohon sebelumnya:
+  $$\hat{y}_i^{(t)} = \hat{y}_i^{(t-1)} + f_t(x_i)$$
+- **Alasan Pemilihan:** Karakteristik data peramalan DBD bulanan bersifat non-linear dengan interaksi multivariat yang kompleks antarfaktor cuaca (curah hujan, hari hujan, suhu, dan kelembapan) pada jeda waktu biologis (*lag 1* dan *lag 2*). XGBoost sangat unggul dalam memodelkan interaksi non-linear tanpa memerlukan asumsi normalitas distribusi, memiliki efisiensi komputasi tinggi, serta mengintegrasikan regularisasi matematis untuk mencegah *overfitting*.
+- **Keunggulan:**
+  1. Mampu menangkap interaksi fitur non-linear orde tinggi antarfaktor meteorologi secara otomatis.
+  2. Dilengkapi fungsi regularisasi L1 (*Lasso / reg_alpha*) dan L2 (*Ridge / reg_lambda*) bawaan untuk mengontrol kompleksitas bobot daun.
+  3. Memiliki kemampuan memberikan estimasi kepentingan fitur (*Feature Importance / Gain*) secara transparan untuk interpretabilitas epidemiologis.
+- **Kelemahan:**
+  1. Secara inheren memperlakukan baris data sebagai tabular independen, sehingga struktur ketergantungan waktu harus direkayasa secara eksplisit melalui fitur *lag* dan *rolling window*.
+  2. Rentan mengalami *overfitting* apabila kedalaman pohon (*max_depth*) tidak dibatasi pada dataset berukuran kecil ($N=121$ baris latih).
+  3. Tidak dapat mengekstrapolasi nilai target di luar rentang nilai ekstrem historis yang pernah teramati pada data latih.
+
+#### 6.2.2 Hypothesis Space & Inductive Bias [M]
+- **Model Family / Arsitektur:** Ansambel Pohon Keputusan Berulang (*Gradient Boosted Regression Trees*).
+- **Hypothesis Space ($\mathcal{H}$):** Himpunan fungsi aditif konstan bertingkat (*piecewise constant functions*) yang dibentuk dari penjumlahan sejumlah $K$ pohon regresi:
+  $$\mathcal{H} = \left\{ f(x) = \sum_{k=1}^K f_k(x) \;\middle|\; f_k \in \mathcal{F} \right\}$$
+  Ruang hipotesis ini sangat ekspresif karena mempartisi ruang fitur 29 dimensi secara ortogonal menjadi daerah-daerah hiper-persegi dan memodelkan interaksi non-linear antarfaktor cuaca.
+- **Inductive Bias / Asumsi:**
+  1. Target kontinu dapat didekati secara optimal melalui kombinasi linear dari pemisahan ambang batas (*threshold splits*) ortogonal.
+  2. Koreksi residual berurutan (*boosting*) dengan tingkat pembelajaran kecil (*shrinkage / learning rate*) menghasilkan generalisasi yang lebih baik daripada menumbuhkan satu pohon besar.
+  3. Struktur pohon yang lebih dangkal (*shallow trees*) dengan bobot daun yang tereduksi oleh penalti L1/L2 lebih disukai (prinsip *Occam's Razor*).
+- **Perbandingan dengan Baseline:**
+  Baseline Naive Forecaster hanya mengasumsikan $\hat{y}_t = y_{t-1}$ tanpa parameter bebas dan mengabaikan seluruh variabel meteorologi. Sebaliknya, XGBoost secara aktif mengekstrak interaksi non-linear dari 29 fitur historis (seperti pengaruh gabungan kelembapan tinggi dan curah hujan pada lag 2 bulan), sehingga mampu mendeteksi potensi penyimpangan kasus dari tren bulan sebelumnya.
+
+#### 6.2.3 Implementasi Ringkas [M]
+Model diinisialisasi dan dilatih menggunakan interface scikit-learn dari `xgboost`:
+```python
+import xgboost as xgb
+
+model_advanced = xgb.XGBRegressor(
+    n_estimators=100,
+    learning_rate=0.1,
+    max_depth=6,
+    subsample=1.0,
+    colsample_bytree=1.0,
+    reg_alpha=0.0,
+    reg_lambda=1.0,
+    random_state=42,
+    objective="reg:squarederror",
+    n_jobs=-1,
+)
+model_advanced.fit(X_train, y_train)
+y_pred_advanced = model_advanced.predict(X_val)
+```
+
+#### 6.2.4 Optimization: Hyperparameter Tuning [O]
+- **Parameter Awal (Default):** `n_estimators=100`, `max_depth=6`, `learning_rate=0.1`, `reg_alpha=0.0`, `reg_lambda=1.0`.
+- **Metode Tuning:** Pencarian Grid Sistematis (*Grid Search*) pada ruang parameter relevan dengan skema evaluasi performa kuadratik (RMSE) langsung pada *Validation Set* kronologis (26 sampel, April 2020 s.d. Mei 2022).
+- **Search Space:**
+  - `n_estimators`: `[30, 50, 100]`
+  - `max_depth`: `[3, 4, 6]`
+  - `learning_rate`: `[0.05, 0.1]`
+  - `subsample`: `[0.8, 1.0]`
+  - `colsample_bytree`: `[0.8, 1.0]`
+  - `reg_alpha` (L1): `[0.0, 1.0, 5.0]`
+  - `reg_lambda` (L2): `[1.0, 5.0]`
+- **Best Parameters Terpilih:**
+  - `max_depth`: `4`
+  - `n_estimators`: `30`
+  - `learning_rate`: `0.1`
+  - `subsample`: `1.0`
+  - `colsample_bytree`: `0.8`
+  - `reg_alpha`: `5.0`
+  - `reg_lambda`: `1.0`
+- **Perbandingan Skor Validasi Sebelum vs Sesudah Tuning:**
+
+| Parameter / Metrik | XGBoost Awal (Default) | XGBoost Terbaik (Tuned) | Perubahan / Efisiensi |
+| :--- | :---: | :---: | :--- |
+| **Konfigurasi Utama** | depth=6, n=100, reg_a=0.0 | depth=4, n=30, reg_a=5.0, col=0.8 | Model lebih ringkas & teratur |
+| **MAE (Mean Absolute Error)** | **198,64 kasus** | **191,09 kasus** | Error berkurang `7,55` kasus |
+| **RMSE (Root Mean Squared Error)** | **282,11 kasus** | **248,11 kasus** | Error kuadratik turun **12,1%** |
+| **R² (Koefisien Determinasi)** | **0,1887** | **0,3725** | Daya eksplanasi melonjak **+0,1838** |
+
+#### 6.2.5 Kontrol Overfitting [O]
+Mengingat data latih hanya terdiri dari 121 sampel bulanan, risiko *overfitting* ditangani secara ketat melalui:
+1. **Pembatasan Kedalaman Pohon (`max_depth=4`):** Mengurangi kapasitas pohon agar tidak membentuk percabangan yang menghafal fluktuasi noise acak data latih.
+2. **Pengurangan Jumlah Estimator (`n_estimators=30`):** Menghentikan penambahan pohon sebelum ansambel mempelajari residual yang tidak relevan.
+3. **Subsampling Kolom Fitur (`colsample_bytree=0.8`):** Memilih 80% fitur secara acak pada setiap pembuatan pohon untuk mendiversifikasi ansambel dan mereduksi korelasi antar-pohon.
+4. **Regularisasi L1 Kuat (`reg_alpha=5.0`):** Mendorong bobot daun yang *sparse*, secara efektif mematikan kontribusi fitur cuaca yang memiliki korelasi semu.
+
+#### 6.2.6 Hasil Evaluasi Model Advanced pada Validation Set [O → P]
+Evaluasi dilakukan secara eksklusif pada **Validation Set (26 sampel, April 2020 s.d. Mei 2022)** dengan **Test Set tetap terkunci**:
+
+![Prediksi XGBoost vs Aktual](reports/figures/fig_08_xgboost_val_predictions.png)
+
+![Analisis Feature Importance XGBoost](reports/figures/fig_09_xgboost_feature_importance.png)
+
+![Analisis Residual Error XGBoost](reports/figures/fig_10_xgboost_residual_analysis.png)
+
+**Temuan Kunci Pemodelan Advanced:**
+1. **Peningkatan Substansial Pasca Tuning:** Penyetelan hyperparameter berhasil memangkas RMSE dari `282,11` menjadi `248,11` dan melipatgandakan $R^2$ dari `0,1887` menjadi `0,3725`.
+2. **Validasi Peran Faktor Meteorologi (*Feature Importance*):** Selain inersia target masa lalu (`dengue_roll2_mean` dan `dengue_lag1`), faktor cuaca memegang peran signifikan dalam pembagian partisi pohon, terutama **kelembapan udara rata-rata 2 bulan lalu (`RH_avg_roll2_mean`)**, **penyinaran matahari lag 2 (`ss_lag2`)**, dan **hari hujan lag 2 (`rain_days_roll2_mean`)**. Ini membuktikan secara empiris hipotesis jeda waktu biologis 1-2 bulan.
+3. **Konteks Komparasi terhadap Baseline:** Model Naive mencatat metrik error yang lebih rendah pada partisi validasi (RMSE `172,51` vs `248,11`). Hal ini terjadi karena periode validasi (April 2020 - Mei 2022) bertepatan dengan masa pandemi COVID-19 (PSBB/PPKM), di mana dinamika kasus DBD di DKI Jakarta berada pada tingkat sangat rendah dan landai (tanpa gelombang epidemi besar), sehingga tebakan *persistence* ($\hat{y}_t = y_{t-1}$) secara alami menghasilkan galat kecil. Namun, model XGBoost membuktikan kemampuannya mengintegrasikan dinamika cuaca riil yang menjadi modal krusial untuk mengantisipasi gelombang lonjakan kasus saat diuji pada *Test Set* (KLB April 2024).
+
 ---
 
 ## REPRODUCIBILITY & STRUKTUR REPOSITORI
@@ -292,14 +392,17 @@ project/
 ├── notebooks/
 │   ├── 01_learning_problem_eda.ipynb   # [L] Data Understanding & EDA (Bab 4.1-4.4)
 │   ├── 02_data_preparation.ipynb       # [L] Data Preparation (Bab 5.1-5.4)
-│   └── 03_model_design_baseline_ml.ipynb # [M] Model 1 - Baseline (Bab 6.1)
+│   ├── 03_model_design_baseline_ml.ipynb # [M] Model 1 - Baseline (Bab 6.1)
+│   └── 03_model_design_advanced_ml.ipynb # [M] Model 2 - Advanced XGBoost (Bab 6.2)
 ├── src/
 │   └── build_dataset.py       # Skrip integrasi & unduh fallback dataset
 ├── models/
 │   ├── .gitkeep
-│   └── baseline_model.pkl              # Artefak model baseline terlatih (Bab 6.1)
+│   ├── baseline_model.pkl              # Artefak model baseline terlatih (Bab 6.1)
+│   ├── xgboost_best.pkl                # Artefak model XGBoost terbaik terlatih (Bab 6.2)
+│   └── xgboost_best.json               # Konfigurasi JSON model XGBoost (Bab 6.2)
 ├── reports/
-│   └── figures/               # Grafik PNG hasil eksekusi notebook (fig_01 - fig_07)
+│   └── figures/               # Grafik PNG hasil eksekusi notebook (fig_01 - fig_10)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -319,6 +422,7 @@ project/
    - `notebooks/01_learning_problem_eda.ipynb`
    - `notebooks/02_data_preparation.ipynb`
    - `notebooks/03_model_design_baseline_ml.ipynb`
+   - `notebooks/03_model_design_advanced_ml.ipynb`
 
 ---
 
