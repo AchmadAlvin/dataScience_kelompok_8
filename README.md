@@ -248,7 +248,7 @@ Detail kode eksekusi dan analisis residual tersedia pada [`notebooks/03_model_de
 
 #### 6.1.2 Hypothesis Space & Inductive Bias
 - **Model Family / Arsitektur:** *Non-parametric persistence heuristic* (model deterministik tanpa parameter bobot bebas).
-- **Hypothesis Space ($\mathcal{H}$):** $\mathcal{H} = \{ f(x_t) = x_{t, \text{dengue\_lag1}} \}$ (*singleton*, dimensi VC = 0). Model sepenuhnya mengabaikan 27 fitur prediktor lainnya (faktor cuaca dan kalender).
+- **Hypothesis Space ($\mathcal{H}$):** $\mathcal{H} = \lbrace f(x_t) = y_{t-1} \rbrace$ (*singleton*, dimensi VC = 0, memetakan nilai historis $x_{t, \mathrm{lag1}}$). Model sepenuhnya mengabaikan 27 fitur prediktor lainnya (faktor cuaca dan kalender).
 - **Inductive Bias / Asumsi:** Mengasumsikan autokorelasi serial sempurna ($\rho_1 \approx 1$) dan ketiadaan perubahan tren/musim ekstrem dalam horizon 1 bulan.
 - **Implikasi terhadap Data:** Sangat cocok pada kondisi endemis landai, namun dipastikan mengalami **keterlambatan fase 1 bulan (*phase lag*)** saat titik balik wabah tiba. Keterlambatan inheren ini menjadi justifikasi ilmiah mutlak perlunya model *advanced* XGBoost multivariat.
 
@@ -298,7 +298,7 @@ Detail perancangan, implementasi, *hyperparameter tuning*, dan evaluasi model Ma
 #### 6.2.2 Hypothesis Space & Inductive Bias [M]
 - **Model Family / Arsitektur:** Ansambel Pohon Keputusan Berulang (*Gradient Boosted Regression Trees*).
 - **Hypothesis Space ($\mathcal{H}$):** Himpunan fungsi aditif konstan bertingkat (*piecewise constant functions*) yang dibentuk dari penjumlahan sejumlah $K$ pohon regresi:
-  $$\mathcal{H} = \left\{ f(x) = \sum_{k=1}^K f_k(x) \;\middle|\; f_k \in \mathcal{F} \right\}$$
+  $$\mathcal{H} = \left\lbrace f(x) = \sum_{k=1}^K f_k(x) \;\middle|\; f_k \in \mathcal{F} \right\rbrace$$
   Ruang hipotesis ini sangat ekspresif karena mempartisi ruang fitur 29 dimensi secara ortogonal menjadi daerah-daerah hiper-persegi dan memodelkan interaksi non-linear antarfaktor cuaca.
 - **Inductive Bias / Asumsi:**
   1. Target kontinu dapat didekati secara optimal melalui kombinasi linear dari pemisahan ambang batas (*threshold splits*) ortogonal.
